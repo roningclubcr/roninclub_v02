@@ -1,0 +1,35 @@
+interface SupabaseErrorLike {
+  code?: string
+  message: string
+}
+
+export function getSupabaseErrorMessage(error: SupabaseErrorLike) {
+  const message = error.message.toLowerCase()
+
+  if (
+    error.code === "42501" ||
+    message.includes("row-level security") ||
+    message.includes("permission denied")
+  ) {
+    return "No tienes permisos para realizar esta accion. Verifica que tu sesion siga activa y que las politicas RLS esten aplicadas."
+  }
+
+  if (error.code === "23505") {
+    return "Ya existe un registro con esos datos."
+  }
+
+  if (error.code === "23503") {
+    return "No se puede completar la accion porque el registro esta relacionado con otros datos."
+  }
+
+  return error.message
+}
+
+export function throwSupabaseError(
+  action: string,
+  table: string,
+  error: SupabaseErrorLike,
+): never {
+  console.error(`Supabase error al ${action} ${table}`, error)
+  throw new Error(getSupabaseErrorMessage(error))
+}

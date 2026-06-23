@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client"
+import { throwSupabaseError } from "@/lib/supabase/errors"
 import type {
   Character,
   CharacterInput,
@@ -10,18 +11,13 @@ import type {
   SizeInput,
 } from "@/lib/types"
 
-function handleSupabaseError(action: string, table: string, error: { message: string }): never {
-  console.error(`Supabase error al ${action} ${table}`, error)
-  throw new Error(error.message)
-}
-
 export async function fetchCharacters(): Promise<Character[]> {
   const { data, error } = await supabase
     .from("characters")
     .select("*")
     .order("created_at", { ascending: false })
 
-  if (error) handleSupabaseError("cargar", "characters", error)
+  if (error) throwSupabaseError("cargar", "characters", error)
   return (data ?? []) as Character[]
 }
 
@@ -32,7 +28,7 @@ export async function createCharacter(input: CharacterInput): Promise<Character>
     .select()
     .single()
 
-  if (error) handleSupabaseError("crear", "characters", error)
+  if (error) throwSupabaseError("crear", "characters", error)
   return data as Character
 }
 
@@ -47,13 +43,13 @@ export async function updateCharacter(
     .select()
     .single()
 
-  if (error) handleSupabaseError("actualizar", "characters", error)
+  if (error) throwSupabaseError("actualizar", "characters", error)
   return data as Character
 }
 
 export async function deleteCharacter(id: string): Promise<void> {
   const { error } = await supabase.from("characters").delete().eq("id", id)
-  if (error) handleSupabaseError("eliminar", "characters", error)
+  if (error) throwSupabaseError("eliminar", "characters", error)
 }
 
 export async function fetchDesigns(): Promise<Design[]> {
@@ -62,7 +58,7 @@ export async function fetchDesigns(): Promise<Design[]> {
     .select("*")
     .order("created_at", { ascending: false })
 
-  if (error) handleSupabaseError("cargar", "designs", error)
+  if (error) throwSupabaseError("cargar", "designs", error)
   return (data ?? []) as Design[]
 }
 
@@ -73,7 +69,7 @@ export async function createDesign(input: DesignInput): Promise<Design> {
     .select()
     .single()
 
-  if (error) handleSupabaseError("crear", "designs", error)
+  if (error) throwSupabaseError("crear", "designs", error)
   return data as Design
 }
 
@@ -88,13 +84,13 @@ export async function updateDesign(
     .select()
     .single()
 
-  if (error) handleSupabaseError("actualizar", "designs", error)
+  if (error) throwSupabaseError("actualizar", "designs", error)
   return data as Design
 }
 
 export async function deleteDesign(id: string): Promise<void> {
   const { error } = await supabase.from("designs").delete().eq("id", id)
-  if (error) handleSupabaseError("eliminar", "designs", error)
+  if (error) throwSupabaseError("eliminar", "designs", error)
 }
 
 export async function fetchColors(): Promise<Color[]> {
@@ -103,7 +99,7 @@ export async function fetchColors(): Promise<Color[]> {
     .select("*")
     .order("created_at", { ascending: false })
 
-  if (error) handleSupabaseError("cargar", "colors", error)
+  if (error) throwSupabaseError("cargar", "colors", error)
   return (data ?? []) as Color[]
 }
 
@@ -114,7 +110,7 @@ export async function createColor(input: ColorInput): Promise<Color> {
     .select()
     .single()
 
-  if (error) handleSupabaseError("crear", "colors", error)
+  if (error) throwSupabaseError("crear", "colors", error)
   return data as Color
 }
 
@@ -126,13 +122,13 @@ export async function updateColor(id: string, input: ColorInput): Promise<Color>
     .select()
     .single()
 
-  if (error) handleSupabaseError("actualizar", "colors", error)
+  if (error) throwSupabaseError("actualizar", "colors", error)
   return data as Color
 }
 
 export async function deleteColor(id: string): Promise<void> {
   const { error } = await supabase.from("colors").delete().eq("id", id)
-  if (error) handleSupabaseError("eliminar", "colors", error)
+  if (error) throwSupabaseError("eliminar", "colors", error)
 }
 
 export async function fetchSizes(): Promise<Size[]> {
@@ -141,7 +137,7 @@ export async function fetchSizes(): Promise<Size[]> {
     .select("*")
     .order("name", { ascending: true })
 
-  if (error) handleSupabaseError("cargar", "sizes", error)
+  if (error) throwSupabaseError("cargar", "sizes", error)
   return (data ?? []) as Size[]
 }
 
@@ -152,7 +148,7 @@ export async function createSize(input: SizeInput): Promise<Size> {
     .select()
     .single()
 
-  if (error) handleSupabaseError("crear", "sizes", error)
+  if (error) throwSupabaseError("crear", "sizes", error)
   return data as Size
 }
 
@@ -164,11 +160,11 @@ export async function updateSize(id: string, input: SizeInput): Promise<Size> {
     .select()
     .single()
 
-  if (error) handleSupabaseError("actualizar", "sizes", error)
+  if (error) throwSupabaseError("actualizar", "sizes", error)
   return data as Size
 }
 
 export async function deleteSize(id: string): Promise<void> {
   const { error } = await supabase.from("sizes").delete().eq("id", id)
-  if (error) handleSupabaseError("eliminar", "sizes", error)
+  if (error) throwSupabaseError("eliminar", "sizes", error)
 }

@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { Menu, X } from "lucide-react"
+import { LogOut, Menu, X } from "lucide-react"
+import { logout } from "@/app/(app)/actions"
 import { navItems } from "@/lib/nav"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
 
   return (
-    <nav className="flex flex-col gap-1 px-3" aria-label="Navegación principal">
+    <nav className="flex flex-col gap-1 px-3" aria-label="Navegacion principal">
       {navItems.map((item) => {
         const isActive =
           item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
@@ -42,7 +43,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 function Brand() {
   return (
     <div className="flex items-center gap-3 px-6 py-5">
-      <div className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground font-mono text-lg font-bold">
+      <div className="flex size-9 items-center justify-center rounded-md bg-primary font-mono text-lg font-bold text-primary-foreground">
         浪
       </div>
       <div className="leading-tight">
@@ -55,23 +56,44 @@ function Brand() {
   )
 }
 
-export function SidebarNav() {
+function AccountArea({ userEmail }: { userEmail?: string }) {
+  return (
+    <div className="border-t border-sidebar-border p-3">
+      {userEmail && (
+        <p className="mb-2 truncate px-3 text-xs text-muted-foreground">
+          {userEmail}
+        </p>
+      )}
+      <form action={logout}>
+        <Button
+          type="submit"
+          variant="ghost"
+          className="w-full justify-start text-sidebar-foreground/70"
+        >
+          <LogOut className="size-4" />
+          Cerrar sesion
+        </Button>
+      </form>
+    </div>
+  )
+}
+
+export function SidebarNav({ userEmail }: { userEmail?: string }) {
   const [open, setOpen] = useState(false)
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col md:border-r md:border-sidebar-border md:bg-sidebar">
         <Brand />
         <div className="flex-1 overflow-y-auto pb-6">
           <NavLinks />
         </div>
+        <AccountArea userEmail={userEmail} />
       </aside>
 
-      {/* Mobile top bar */}
       <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar px-4 py-3 md:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-mono text-base font-bold">
+          <div className="flex size-8 items-center justify-center rounded-md bg-primary font-mono text-base font-bold text-primary-foreground">
             浪
           </div>
           <span className="text-sm font-semibold">Ronin Club</span>
@@ -79,14 +101,13 @@ export function SidebarNav() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? "Cerrar menú" : "Abrir menú"}
+          onClick={() => setOpen((value) => !value)}
+          aria-label={open ? "Cerrar menu" : "Abrir menu"}
         >
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </Button>
       </div>
 
-      {/* Mobile drawer */}
       {open && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
@@ -94,11 +115,12 @@ export function SidebarNav() {
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute left-0 top-0 h-full w-64 border-r border-sidebar-border bg-sidebar">
+          <div className="absolute left-0 top-0 flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar">
             <Brand />
-            <div className="overflow-y-auto pb-6">
+            <div className="flex-1 overflow-y-auto pb-6">
               <NavLinks onNavigate={() => setOpen(false)} />
             </div>
+            <AccountArea userEmail={userEmail} />
           </div>
         </div>
       )}

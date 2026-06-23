@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createBrowserClient } from "@supabase/ssr"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -9,5 +9,9 @@ if (!supabaseUrl || !supabaseKey) {
   )
 }
 
-// Cliente para el navegador. Usa la publishable key (nunca la secret key).
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export function createClient() {
+  return createBrowserClient(supabaseUrl!, supabaseKey!)
+}
+
+// Mantiene compatibilidad con los modulos cliente existentes.
+export const supabase = createClient()
