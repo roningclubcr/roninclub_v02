@@ -3,54 +3,30 @@
 import { useEffect, useMemo, useState } from "react"
 import useSWR from "swr"
 import { toast } from "sonner"
-import { CreditCard, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react"
-import type { Payment, PaymentInput } from "@/lib/types"
-import { createPayment, deletePayment, fetchPayments, fetchSales, updatePayment } from "@/lib/business"
+import { AlertTriangle, CreditCard, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react"
+import type { Payment, PaymentInput, PaymentMethod, Sale, SaleInput } from "@/lib/types"
+import { createPayment, deletePayment, fetchPayments, fetchSales, updatePayment, updateSale } from "@/lib/business"
 import { fetchClients } from "@/lib/clients"
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 
 const none = "__none"
+const paymentMethods: PaymentMethod[] = ["sinpe", "efectivo", "transferencia", "tarjeta", "otro"]
 const emptyForm: PaymentInput = {
   sale_id: null,
   payment_date: new Date().toISOString().slice(0, 10),
   amount: null,
-  payment_method: "",
+  payment_method: "sinpe",
   reference: "",
   notes: "",
 }
@@ -62,7 +38,7 @@ function toNumber(value: string) {
 }
 
 function money(value: number | null | undefined) {
-  if (value === null || value === undefined) return "—"
+  if (value === null || value === undefined) return "-"
   return new Intl.NumberFormat("es-CR", { style: "currency", currency: "CRC", maximumFractionDigits: 0 }).format(value)
 }
 
@@ -70,9 +46,33 @@ function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback
 }
 
+function saleToInput(sale: Sale): SaleInput {
+  return {
+    sale_number: sale.sale_number,
+    client_id: sale.client_id,
+    character_id: sale.character_id,
+    design_id: sale.design_id,
+    color_id: sale.color_id,
+    size_id: sale.size_id,
+    finish_type: sale.finish_type,
+    quantity: sale.quantity,
+    sale_price: sale.sale_price,
+    shirt_cost: sale.shirt_cost,
+    dtf_cost: sale.dtf_cost,
+    packaging_cost: sale.packaging_cost,
+    other_costs: sale.other_costs,
+    production_status: sale.production_status,
+    payment_status: sale.payment_status,
+    order_date: sale.order_date,
+    estimated_delivery_date: sale.estimated_delivery_date,
+    real_delivery_date: sale.real_delivery_date,
+    notes: sale.notes,
+  }
+}
+
 export default function PaymentsPage() {
   const { data: payments, error, isLoading, mutate } = useSWR("payments", fetchPayments)
-  const { data: sales } = useSWR("sales", fetchSales)
+  const { data: sales, mutate: mutateSales } = useSWR("sales", fetchSales)
   const { data: clients } = useSWR("clients", fetchClients)
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
@@ -95,11 +95,9 @@ export default function PaymentsPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!payments) return []
-    if (!q) return payments
-    return payments.filter((payment) => {
+    return (payments ?? []).filter((payment) => {
       const sale = payment.sale_id ? salesById.get(payment.sale_id) : null
-      return [
+      return !q || [
         payment.payment_method,
         payment.reference,
         payment.notes,
@@ -116,7 +114,7 @@ export default function PaymentsPage() {
       sale_id: editing.sale_id,
       payment_date: editing.payment_date,
       amount: editing.amount,
-      payment_method: editing.payment_method ?? "",
+      payment_method: editing.payment_method ?? "sinpe",
       reference: editing.reference ?? "",
       notes: editing.notes ?? "",
     } : emptyForm)
@@ -134,7 +132,7 @@ export default function PaymentsPage() {
     }
     const payload: PaymentInput = {
       ...form,
-      payment_method: form.payment_method?.trim() || null,
+      payment_method: form.payment_method?.trim() || "sinpe",
       reference: form.reference?.trim() || null,
       notes: form.notes?.trim() || null,
     }
@@ -146,6 +144,17 @@ export default function PaymentsPage() {
       } else {
         await createPayment(payload)
         toast.success("Pago registrado")
+      }
+      const sale = payload.sale_id ? salesById.get(payload.sale_id) : null
+      if (sale) {
+        const previousPaid = (payments ?? [])
+          .filter((payment) => payment.sale_id === sale.id && payment.id !== editing?.id)
+          .reduce((sum, payment) => sum + (payment.amount ?? 0), 0)
+        const nextPaid = previousPaid + (payload.amount ?? 0)
+        if (nextPaid >= (sale.sale_price ?? 0)) {
+          await updateSale(sale.id, { ...saleToInput(sale), payment_status: "pagado" })
+          await mutateSales()
+        }
       }
       setOpen(false)
       await mutate()
@@ -190,10 +199,10 @@ export default function PaymentsPage() {
           {error ? <div className="px-6 py-12 text-center text-sm text-destructive">Error al cargar pagos: {error.message}</div> : isLoading ? (
             <div className="space-y-3 p-6">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center"><div className="flex size-12 items-center justify-center rounded-full bg-muted"><CreditCard className="size-6 text-muted-foreground" /></div><p className="text-sm font-medium">{query ? "Sin resultados" : "Aún no hay pagos"}</p></div>
+            <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center"><div className="flex size-12 items-center justify-center rounded-full bg-muted"><CreditCard className="size-6 text-muted-foreground" /></div><p className="text-sm font-medium">{query ? "Sin resultados" : "Aun no hay pagos"}</p></div>
           ) : (
             <Table>
-              <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Venta</TableHead><TableHead>Cliente</TableHead><TableHead>Monto</TableHead><TableHead>Pagado venta</TableHead><TableHead>Saldo</TableHead><TableHead>Método</TableHead><TableHead>Referencia</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Venta</TableHead><TableHead>Cliente</TableHead><TableHead>Monto</TableHead><TableHead>Pagado venta</TableHead><TableHead>Saldo</TableHead><TableHead>Metodo</TableHead><TableHead>Referencia</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
               <TableBody>
                 {filtered.map((payment) => {
                   const sale = payment.sale_id ? salesById.get(payment.sale_id) : null
@@ -201,14 +210,14 @@ export default function PaymentsPage() {
                   const balance = Math.max((sale?.sale_price ?? 0) - paid, 0)
                   return (
                     <TableRow key={payment.id}>
-                      <TableCell>{payment.payment_date || "—"}</TableCell>
-                      <TableCell className="font-medium">{sale?.sale_number || "—"}</TableCell>
-                      <TableCell>{sale?.client_id ? clientsById.get(sale.client_id) ?? "—" : "—"}</TableCell>
+                      <TableCell>{payment.payment_date || "-"}</TableCell>
+                      <TableCell className="font-medium">{sale?.sale_number || "-"}</TableCell>
+                      <TableCell>{sale?.client_id ? clientsById.get(sale.client_id) ?? "-" : "-"}</TableCell>
                       <TableCell>{money(payment.amount)}</TableCell>
                       <TableCell><Badge variant="secondary">{money(paid)}</Badge></TableCell>
-                      <TableCell><Badge variant={balance > 0 ? "outline" : "default"}>{money(balance)}</Badge></TableCell>
-                      <TableCell>{payment.payment_method || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{payment.reference || "—"}</TableCell>
+                      <TableCell><Badge variant={balance > 0 ? "destructive" : "default"}>{balance > 0 && <AlertTriangle className="size-3" />}{money(balance)}</Badge></TableCell>
+                      <TableCell>{payment.payment_method || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{payment.reference || "-"}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}><MoreHorizontal className="size-4" /></DropdownMenuTrigger>
@@ -232,20 +241,39 @@ export default function PaymentsPage() {
           <DialogHeader><DialogTitle>{editing ? "Editar pago" : "Nuevo pago"}</DialogTitle><DialogDescription>Asocia el pago a una venta.</DialogDescription></DialogHeader>
           <form onSubmit={handleSubmit} className="grid gap-4">
             {formError && <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</div>}
-            <div className="grid gap-2"><Label>Venta</Label><Select value={form.sale_id ?? none} onValueChange={(v) => setForm((p) => ({ ...p, sale_id: v === none ? null : v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={none}>Selecciona venta</SelectItem>{(sales ?? []).map((sale) => <SelectItem key={sale.id} value={sale.id}>{sale.sale_number || sale.id.slice(0, 8)} · {sale.client_id ? clientsById.get(sale.client_id) ?? "" : ""}</SelectItem>)}</SelectContent></Select></div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="grid gap-2"><Label htmlFor="payment_date">Fecha</Label><Input id="payment_date" type="date" value={form.payment_date ?? ""} onChange={(e) => setForm((p) => ({ ...p, payment_date: e.target.value || null }))} /></div>
-              <div className="grid gap-2"><Label htmlFor="amount">Monto</Label><Input id="amount" type="number" min="0" value={form.amount ?? ""} onChange={(e) => setForm((p) => ({ ...p, amount: toNumber(e.target.value) }))} /></div>
-              <div className="grid gap-2"><Label htmlFor="payment_method">Método</Label><Input id="payment_method" value={form.payment_method ?? ""} onChange={(e) => setForm((p) => ({ ...p, payment_method: e.target.value }))} /></div>
-              <div className="grid gap-2"><Label htmlFor="reference">Referencia</Label><Input id="reference" value={form.reference ?? ""} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} /></div>
+            <div className="grid gap-2">
+              <Label>Venta</Label>
+              <Select value={form.sale_id ?? none} onValueChange={(value) => setForm((prev) => ({ ...prev, sale_id: value === none ? null : value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={none}>Selecciona venta</SelectItem>
+                  {(sales ?? []).map((sale) => {
+                    const paid = paidBySale.get(sale.id) ?? 0
+                    const balance = Math.max((sale.sale_price ?? 0) - paid, 0)
+                    return <SelectItem key={sale.id} value={sale.id}>{sale.sale_number || sale.id.slice(0, 8)} · {sale.client_id ? clientsById.get(sale.client_id) ?? "" : ""} · saldo {money(balance)}</SelectItem>
+                  })}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid gap-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={form.notes ?? ""} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} /></div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2"><Label htmlFor="payment_date">Fecha</Label><Input id="payment_date" type="date" value={form.payment_date ?? ""} onChange={(e) => setForm((prev) => ({ ...prev, payment_date: e.target.value || null }))} /></div>
+              <div className="grid gap-2"><Label htmlFor="amount">Monto</Label><Input id="amount" type="number" min="0" value={form.amount ?? ""} onChange={(e) => setForm((prev) => ({ ...prev, amount: toNumber(e.target.value) }))} /></div>
+              <div className="grid gap-2">
+                <Label htmlFor="payment_method">Metodo</Label>
+                <Select value={form.payment_method ?? "sinpe"} onValueChange={(value) => setForm((prev) => ({ ...prev, payment_method: value ?? "sinpe" }))}>
+                  <SelectTrigger id="payment_method"><SelectValue /></SelectTrigger>
+                  <SelectContent>{paymentMethods.map((method) => <SelectItem key={method} value={method}>{method}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2"><Label htmlFor="reference">Referencia</Label><Input id="reference" value={form.reference ?? ""} onChange={(e) => setForm((prev) => ({ ...prev, reference: e.target.value }))} /></div>
+            </div>
+            <div className="grid gap-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" value={form.notes ?? ""} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} /></div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(deleting)} onOpenChange={(next) => !next && setDeleting(null)}>
-        <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Eliminar pago</DialogTitle><DialogDescription>¿Seguro que deseas eliminar este pago?</DialogDescription></DialogHeader>{deleteError && <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{deleteError}</div>}<DialogFooter><Button variant="outline" onClick={() => setDeleting(null)} disabled={saving}>Cancelar</Button><Button variant="destructive" onClick={handleDelete} disabled={saving}>{saving ? "Eliminando..." : "Eliminar"}</Button></DialogFooter></DialogContent>
+        <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Eliminar pago</DialogTitle><DialogDescription>Seguro que deseas eliminar este pago?</DialogDescription></DialogHeader>{deleteError && <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{deleteError}</div>}<DialogFooter><Button variant="outline" onClick={() => setDeleting(null)} disabled={saving}>Cancelar</Button><Button variant="destructive" onClick={handleDelete} disabled={saving}>{saving ? "Eliminando..." : "Eliminar"}</Button></DialogFooter></DialogContent>
       </Dialog>
     </>
   )

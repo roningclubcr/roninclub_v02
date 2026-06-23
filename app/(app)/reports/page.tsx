@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type Period = "weekly" | "monthly" | "quarterly" | "yearly" | "custom"
 
@@ -42,38 +43,12 @@ function periodRange(period: Period) {
   return { from: iso(start), to: iso(now) }
 }
 
-function topName(ids: Array<string | null>, names: Map<string, string>) {
+function countRank(values: string[]) {
   const counts = new Map<string, number>()
-  for (const id of ids) {
-    if (!id) continue
-    counts.set(id, (counts.get(id) ?? 0) + 1)
-  }
-  let bestId = ""
-  let bestCount = 0
-  for (const [id, count] of counts.entries()) {
-    if (count > bestCount) {
-      bestId = id
-      bestCount = count
-    }
-  }
-  return bestId ? `${names.get(bestId) ?? "Sin nombre"} (${bestCount})` : "—"
-}
-
-function topValue(values: Array<string | null>) {
-  const counts = new Map<string, number>()
-  for (const value of values) {
-    if (!value) continue
-    counts.set(value, (counts.get(value) ?? 0) + 1)
-  }
-  let best = ""
-  let bestCount = 0
-  for (const [value, count] of counts.entries()) {
-    if (count > bestCount) {
-      best = value
-      bestCount = count
-    }
-  }
-  return best ? `${best} (${bestCount})` : "—"
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
 }
 
 export default function ReportsPage() {
@@ -109,30 +84,49 @@ export default function ReportsPage() {
   const expenseTotal = filteredExpenses.reduce((sum, expense) => sum + (expense.amount ?? 0), 0)
   const costs = filteredSales.reduce((sum, sale) => sum + (sale.shirt_cost ?? 0) + (sale.dtf_cost ?? 0) + (sale.packaging_cost ?? 0) + (sale.other_costs ?? 0), 0)
   const shirts = filteredSales.reduce((sum, sale) => sum + (sale.quantity ?? 0), 0)
+  const averageTicket = filteredSales.length ? gross / filteredSales.length : 0
+
   const paidBySale = new Map<string, number>()
   for (const payment of payments ?? []) {
     if (payment.sale_id) paidBySale.set(payment.sale_id, (paidBySale.get(payment.sale_id) ?? 0) + (payment.amount ?? 0))
   }
+  const receivable = filteredSales.reduce((sum, sale) => sum + Math.max((sale.sale_price ?? 0) - (paidBySale.get(sale.id) ?? 0), 0), 0)
   const pendingPayment = filteredSales.filter((sale) => Math.max((sale.sale_price ?? 0) - (paidBySale.get(sale.id) ?? 0), 0) > 0).length
   const pendingDelivery = filteredSales.filter((sale) => !["entregado", "cancelado"].includes(sale.production_status ?? "")).length
+
+  const productRank = [
+    ...countRank(filteredSales.map((sale) => (sale.character_id ? characterNames.get(sale.character_id) ?? "Sin nombre" : "Sin personaje"))).slice(0, 5).map((item) => ({ type: "Personaje", ...item })),
+    ...countRank(filteredSales.map((sale) => (sale.design_id ? designNames.get(sale.design_id) ?? "Sin nombre" : "Sin diseno"))).slice(0, 5).map((item) => ({ type: "Diseno", ...item })),
+  ]
+  const attributeRank = [
+    ...countRank(filteredSales.map((sale) => (sale.color_id ? colorNames.get(sale.color_id) ?? "Sin nombre" : "Sin color"))).slice(0, 4).map((item) => ({ type: "Color", ...item })),
+    ...countRank(filteredSales.map((sale) => (sale.size_id ? sizeNames.get(sale.size_id) ?? "Sin nombre" : "Sin talla"))).slice(0, 4).map((item) => ({ type: "Talla", ...item })),
+    ...countRank(filteredSales.map((sale) => sale.finish_type ?? "Sin acabado")).slice(0, 4).map((item) => ({ type: "Acabado", ...item })),
+  ]
+  const expenseRank = [...filteredExpenses.reduce((map, expense) => {
+    const category = expense.category ?? "otro"
+    const current = map.get(category) ?? 0
+    map.set(category, current + (expense.amount ?? 0))
+    return map
+  }, new Map<string, number>()).entries()]
+    .map(([label, total]) => ({ label, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8)
 
   const cards = [
     ["Ventas brutas", money(gross)],
     ["Gastos", money(expenseTotal)],
     ["Utilidad estimada", money(gross - costs - expenseTotal)],
+    ["Ticket promedio", money(averageTicket)],
+    ["Total por cobrar", money(receivable)],
     ["Camisas vendidas", shirts.toString()],
-    ["Personaje más vendido", topName(filteredSales.map((sale) => sale.character_id), characterNames)],
-    ["Diseño más vendido", topName(filteredSales.map((sale) => sale.design_id), designNames)],
-    ["Color más vendido", topName(filteredSales.map((sale) => sale.color_id), colorNames)],
-    ["Talla más vendida", topName(filteredSales.map((sale) => sale.size_id), sizeNames)],
-    ["Acabado más vendido", topValue(filteredSales.map((sale) => sale.finish_type))],
     ["Pendientes de pago", pendingPayment.toString()],
     ["Pendientes de entrega", pendingDelivery.toString()],
   ]
 
   return (
     <>
-      <PageHeader title="Reportes" description="Métricas por periodo para ventas, gastos y producción." />
+      <PageHeader title="Reportes" description="Metricas por periodo para ventas, gastos y produccion." />
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <div className="grid gap-2">
           <Label>Periodo</Label>
@@ -157,7 +151,7 @@ export default function ReportsPage() {
         </div>
       </div>
       {error && <div role="alert" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">Error al cargar reportes: {error.message}</div>}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([label, value]) => (
           <Card key={label}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -167,6 +161,44 @@ export default function ReportsPage() {
             <CardContent>{loading ? <Skeleton className="h-8 w-24" /> : <p className="text-2xl font-semibold tracking-tight">{value}</p>}</CardContent>
           </Card>
         ))}
+      </div>
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader><CardTitle>Ranking de productos</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Nombre</TableHead><TableHead>Ventas</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {productRank.map((item) => <TableRow key={`${item.type}-${item.label}`}><TableCell>{item.type}</TableCell><TableCell className="font-medium">{item.label}</TableCell><TableCell>{item.count}</TableCell></TableRow>)}
+                {!productRank.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">Sin ventas en el periodo.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Atributos mas vendidos</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader><TableRow><TableHead>Tipo</TableHead><TableHead>Valor</TableHead><TableHead>Ventas</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {attributeRank.map((item) => <TableRow key={`${item.type}-${item.label}`}><TableCell>{item.type}</TableCell><TableCell className="font-medium">{item.label}</TableCell><TableCell>{item.count}</TableCell></TableRow>)}
+                {!attributeRank.length && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">Sin ventas en el periodo.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Gastos por categoria</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader><TableRow><TableHead>Categoria</TableHead><TableHead>Total</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {expenseRank.map((item) => <TableRow key={item.label}><TableCell className="font-medium">{item.label}</TableCell><TableCell>{money(item.total)}</TableCell></TableRow>)}
+                {!expenseRank.length && <TableRow><TableCell colSpan={2} className="text-center text-muted-foreground">Sin gastos en el periodo.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </>
   )
