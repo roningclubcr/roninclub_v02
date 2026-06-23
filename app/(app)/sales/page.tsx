@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import useSWR from "swr"
 import { toast } from "sonner"
-import { MoreHorizontal, Plus, Search, ShoppingCart, Trash2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Plus, Search, ShoppingCart, Trash2 } from "lucide-react"
 import type { PaymentStatus, ProductionStatus, Sale, SaleInput } from "@/lib/types"
 import { fetchCharacters, fetchColors, fetchDesigns, fetchSizes } from "@/lib/catalogs"
 import { fetchClients } from "@/lib/clients"
@@ -283,6 +283,7 @@ export default function SalesPage() {
                           <MoreHorizontal className="size-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem render={<Link href={`/sales/${sale.id}/edit`} />}><Pencil className="size-4" />Editar</DropdownMenuItem>
                           <DropdownMenuItem variant="destructive" onClick={() => { setDeleteError(null); setDeleting(sale) }}><Trash2 className="size-4" />Eliminar</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

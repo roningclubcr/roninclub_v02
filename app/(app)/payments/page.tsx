@@ -92,6 +92,10 @@ export default function PaymentsPage() {
     }
     return map
   }, [payments])
+  const salesWithPayments = useMemo(() => new Set((payments ?? []).map((payment) => payment.sale_id).filter(Boolean)), [payments])
+  const selectableSales = useMemo(() => {
+    return (sales ?? []).filter((sale) => sale.id === editing?.sale_id || (!salesWithPayments.has(sale.id) && sale.payment_status !== "pagado"))
+  }, [sales, salesWithPayments, editing])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -130,6 +134,12 @@ export default function PaymentsPage() {
       toast.error(message)
       return
     }
+    if (!editing && salesWithPayments.has(form.sale_id)) {
+      const message = "Esta venta ya tiene un pago registrado"
+      setFormError(message)
+      toast.error(message)
+      return
+    }
     const payload: PaymentInput = {
       ...form,
       payment_method: form.payment_method?.trim() || "sinpe",
@@ -147,14 +157,8 @@ export default function PaymentsPage() {
       }
       const sale = payload.sale_id ? salesById.get(payload.sale_id) : null
       if (sale) {
-        const previousPaid = (payments ?? [])
-          .filter((payment) => payment.sale_id === sale.id && payment.id !== editing?.id)
-          .reduce((sum, payment) => sum + (payment.amount ?? 0), 0)
-        const nextPaid = previousPaid + (payload.amount ?? 0)
-        if (nextPaid >= (sale.sale_price ?? 0)) {
-          await updateSale(sale.id, { ...saleToInput(sale), payment_status: "pagado" })
-          await mutateSales()
-        }
+        await updateSale(sale.id, { ...saleToInput(sale), payment_status: "pagado" })
+        await mutateSales()
       }
       setOpen(false)
       await mutate()
@@ -247,7 +251,7 @@ export default function PaymentsPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={none}>Selecciona venta</SelectItem>
-                  {(sales ?? []).map((sale) => {
+                  {selectableSales.map((sale) => {
                     const paid = paidBySale.get(sale.id) ?? 0
                     const balance = Math.max((sale.sale_price ?? 0) - paid, 0)
                     return <SelectItem key={sale.id} value={sale.id}>{sale.sale_number || sale.id.slice(0, 8)} · {sale.client_id ? clientsById.get(sale.client_id) ?? "" : ""} · saldo {money(balance)}</SelectItem>

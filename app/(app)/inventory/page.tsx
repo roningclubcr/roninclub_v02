@@ -165,7 +165,7 @@ export default function InventoryPage() {
             <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center"><div className="flex size-12 items-center justify-center rounded-full bg-muted"><Package className="size-6 text-muted-foreground" /></div><p className="text-sm font-medium">{query ? "Sin resultados" : "Aun no hay inventario"}</p></div>
           ) : (
             <Table>
-              <TableHeader><TableRow><TableHead>Insumo</TableHead><TableHead>Acabado</TableHead><TableHead>Color</TableHead><TableHead>Talla</TableHead><TableHead>Stock</TableHead><TableHead>Minimo</TableHead><TableHead>Costo</TableHead><TableHead>Proveedor</TableHead><TableHead>Estado</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Insumo</TableHead><TableHead>Acabado</TableHead><TableHead>Color</TableHead><TableHead>Talla</TableHead><TableHead>Stock</TableHead><TableHead>Minimo</TableHead><TableHead>Costo</TableHead><TableHead>Proveedor</TableHead><TableHead>Notas</TableHead><TableHead>Estado</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
               <TableBody>{filtered.map((item) => {
                 const state = stockState(item)
                 return (
@@ -178,6 +178,7 @@ export default function InventoryPage() {
                     <TableCell>{item.stock_minimo ?? 0}</TableCell>
                     <TableCell>{money(item.unit_cost)}</TableCell>
                     <TableCell className="text-muted-foreground">{item.supplier || "-"}</TableCell>
+                    <TableCell className="max-w-xs truncate text-muted-foreground">{item.item_type !== "camisa" ? item.notes || "-" : "-"}</TableCell>
                     <TableCell><Badge variant={state.variant}>{state.label !== "OK" && <AlertTriangle className="size-3" />}{state.label}</Badge></TableCell>
                     <TableCell><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}><MoreHorizontal className="size-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => { setEditing(item); setOpen(true) }}><Pencil className="size-4" />Editar</DropdownMenuItem><DropdownMenuItem variant="destructive" onClick={() => { setDeleteError(null); setDeleting(item) }}><Trash2 className="size-4" />Eliminar</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
                   </TableRow>
