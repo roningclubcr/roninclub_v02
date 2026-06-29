@@ -90,9 +90,30 @@ export default function NewSalePage() {
   })
 
   const filteredDesigns = useMemo(() => {
-    if (!form.character_id) return designs ?? []
-    return (designs ?? []).filter((design) => design.character_id === form.character_id)
-  }, [designs, form.character_id])
+    const availableDesigns = designs ?? []
+    if (!form.character_id) return availableDesigns
+
+    const matchingDesigns = availableDesigns.filter((design) => design.character_id === form.character_id)
+    const unassignedDesigns = availableDesigns.filter((design) => !design.character_id)
+    const selectedDesign = availableDesigns.find((design) => design.id === form.design_id)
+    const designMap = new Map(
+      [...matchingDesigns, ...unassignedDesigns, ...(selectedDesign ? [selectedDesign] : [])].map((design) => [
+        design.id,
+        design,
+      ]),
+    )
+
+    return designMap.size > 0 ? Array.from(designMap.values()) : availableDesigns
+  }, [designs, form.character_id, form.design_id])
+
+  function handleDesignChange(value: string | null) {
+    const design = (designs ?? []).find((item) => item.id === value)
+    setForm((prev) => ({
+      ...prev,
+      design_id: !value || value === none ? null : value,
+      character_id: value !== none && design?.character_id ? design.character_id : prev.character_id,
+    }))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -171,7 +192,7 @@ export default function NewSalePage() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="design_id">Diseño</Label>
-                <Select value={form.design_id ?? none} onValueChange={(v) => setForm((p) => ({ ...p, design_id: v === none ? null : v }))}>
+                <Select value={form.design_id ?? none} onValueChange={handleDesignChange}>
                   <SelectTrigger id="design_id"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={none}>Selecciona diseño</SelectItem>
